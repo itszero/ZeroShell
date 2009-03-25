@@ -1,0 +1,15 @@
+h1. ZeroShell (ZRSh)
+
+h2. Introduction
+
+ZeroShell is my implementation of a simple shell. However, it'll not focus on making it a useful shell. It's only coded for practicing and for the Operating System homework.
+
+ZeroShell is also an open source software, under the MIT license.
+
+h2. Library dependencies
+
+ZRSh currently requires libreadline to work.
+
+h2. Compatibility
+
+ZRSh is known to compile and run on Linux(ArchLinux) and Mac OSX.
