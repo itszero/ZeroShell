@@ -302,7 +302,7 @@ int main()
 	}
 	else
 	{
-		cout << "\033[1;37mWelcome to \033[1;31mZeroShell\033[m(\033[1;31mZRSh\033[m) 1.0\033[m" << endl;
+		cout << "\033[1;37mWelcome to \033[1;31mZeroShell\033[m(\033[1;31mZRSh\033[m) \033[1;37m1.0\033[m" << endl;
 		cout << "Copyright by Zero Cho 2009. Licensed under MIT license." << endl;
 		cout << "\033[1;33mInitializing in progress...\033[m" << endl;
 		msg_head = "\033[1;31m[ZRSH]\033[m ";
@@ -407,12 +407,24 @@ int main()
 		}
 		else if (r.parts[0].command == "help")
 		{
-			cout << "ZeroShell(ZRSh) 1.0 -Help-" << endl << endl;
-			printf("%10s %s\n", "setenv", "(name) (value) Set environment variables, leave value empty to unset.");
-			printf("%10s %s\n", "listenv", "List all environment variables");
-			printf("%10s %s\n", "help", "Display this help");
-			printf("%10s %s\n", "quit", "Leave this shell");
-			cout << endl;
+			if (color_output)
+			{
+				cout << "\033[1;37mZeroShell(ZRSh) 1.0 -Help-\033[m" << endl << endl;
+				printf("%10s %s\n", "\033[1;32msetenv\033[m", "(name) (value) Set environment variables, leave value empty to unset.");
+				printf("%10s %s\n", "\033[1;32mlistenv\033[m", "List all environment variables");
+				printf("%10s %s\n", "\033[1;32mhelp\033[m", "Display this help");
+				printf("%10s %s\n", "\033[1;32mquit\033[m", "Leave this shell");
+				cout << endl;
+			}
+			else
+			{
+				cout << "ZeroShell(ZRSh) 1.0 -Help-" << endl << endl;
+				printf("%10s %s\n", "setenv", "(name) (value) Set environment variables, leave value empty to unset.");
+				printf("%10s %s\n", "listenv", "List all environment variables");
+				printf("%10s %s\n", "help", "Display this help");
+				printf("%10s %s\n", "quit", "Leave this shell");
+				cout << endl;				
+			}
 		}
 		else
 		{
