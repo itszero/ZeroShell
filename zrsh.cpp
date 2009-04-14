@@ -23,6 +23,10 @@ using namespace std;
 
 extern int errno;
 extern char** environ;
+bool interactive = false;
+int waitingpid = 0;
+bool color_output = false;
+string msg_head = "[ZRSh] ";
 
 #ifdef DEBUG
 /**
@@ -31,14 +35,11 @@ extern char** environ;
  */
 void debug(string msg)
 {
-	cerr << "[ZRSh (" << getpid() << ")] " << msg << endl;
+	cerr << msg_head << "(" << getpid() << ")" << msg << endl;
 }
 #else
 void debug(string msg) {}
 #endif
-
-bool interactive = false;
-int waitingpid = 0;
 
 /**
  * This method gives you string trimmed the extra whitespaces in the begin or end.
@@ -117,7 +118,7 @@ void execute(ZRCommandParserResultPart r)
 	// MYPATH is not found, use PATH instead.
 	if (!searchPath)
 	{
-		cerr << "[ZRSh] MYPATH is not found, fallback to PATH" << endl;
+		cerr << msg_head << "MYPATH is not found, fallback to PATH" << endl;
 		searchPath = getenv("PATH");
 	}
 	
@@ -154,7 +155,7 @@ void execute(ZRCommandParserResultPart r)
 		fp = fopen(r.redirIn.c_str(), "r");
 		fd = fileno(fp);
 		if (dup2(fd, STDIN_FILENO) == -1)
-			cerr << "[ZRSh] Unable to redirect STDIN from " << r.redirIn << endl;
+			cerr << msg_head << "Unable to redirect STDIN from " << r.redirIn << endl;
 	}
 
 	if (r.redirOut != "")
@@ -162,7 +163,7 @@ void execute(ZRCommandParserResultPart r)
 		fp = fopen(r.redirOut.c_str(), "w");
 		fd = fileno(fp);
 		if (dup2(fd, STDOUT_FILENO) == -1)
-			cerr << "[ZRSh] Unable to redirect STDOUT to " << r.redirOut << endl;
+			cerr << msg_head << "Unable to redirect STDOUT to " << r.redirOut << endl;
 	}
 
 	if (r.redirAppend != "")
@@ -170,13 +171,13 @@ void execute(ZRCommandParserResultPart r)
 		fp = fopen(r.redirAppend.c_str(), "a");
 		fd = fileno(fp);
 		if (dup2(fd, STDOUT_FILENO) == -1)
-			cerr << "[ZRSh] Unable to redirect and append STDOUT to " << r.redirAppend << endl;
+			cerr << msg_head << "Unable to redirect and append STDOUT to " << r.redirAppend << endl;
 	}
 	
 	execv(arg_list[0], arg_list);
 
 	// Code below only runs when exec is failed.
-	cout << "[ZRSh] Unable to execute command. (code: " << errno << ")" << endl;
+	cout << msg_head << "Unable to execute command. (code: " << errno << ")" << endl;
 	exit(-1);
 
 	for(i = 0;i < r.arguments.size();i++)
@@ -205,7 +206,7 @@ void spawn(ZRCommandParserResultPart r)
 		}
 	}
 	else
-		cout << "[ZRSh] Sorry, fork failed!" << endl;
+		cout << msg_head << "Sorry, fork failed!" << endl;
 	
 	return;
 }
@@ -220,7 +221,7 @@ int spawn_for_pipe(vector<ZRCommandParserResultPart>::iterator begin, vector<ZRC
 {
 	int fds[2];
 	if (pipe(fds) == -1)
-		cout << "[ZRSh] Unable to create pipe (code: " << errno << ")" << endl;
+		cout << msg_head << "Unable to create pipe (code: " << errno << ")" << endl;
 	
 	vector<ZRCommandParserResultPart>::iterator nxtItr = begin + 1;
 	
@@ -230,27 +231,27 @@ int spawn_for_pipe(vector<ZRCommandParserResultPart>::iterator begin, vector<ZRC
 		if (begin->pipe_with_next)
 		{
 			if (dup2(fds[1], STDOUT_FILENO) == -1)
-				cerr << "[ZRSh] dup2 failed. (STDOUT)" << endl;
+				cerr << msg_head << "dup2 failed. (STDOUT)" << endl;
 		}
 
 		if (close(fds[0]) == -1)
-			cerr << "[ZRSh] close failed. (PIPE_READ)" << endl;
+			cerr << msg_head << "close failed. (PIPE_READ)" << endl;
 
 		if (close(fds[1]) == -1)
-			cerr << "[ZRSh] close failed. (PIPE_WRITE)" << endl;
+			cerr << msg_head << "close failed. (PIPE_WRITE)" << endl;
 			
 		execute(*begin);
 	}
 	else if (pid > 0)
 	{
 		if (dup2(fds[0], STDIN_FILENO) == -1)
-			cerr << "[ZRSh] dup2 failed. (STDIN)" << endl;
+			cerr << msg_head << "dup2 failed. (STDIN)" << endl;
 
 		if (close(fds[0]) == -1)
-			cerr << "[ZRSh] close failed. (PIPE_READ)" << endl;
+			cerr << msg_head << "close failed. (PIPE_READ)" << endl;
 
 		if (close(fds[1]) == -1)
-			cerr << "[ZRSh] close failed. (PIPE_WRITE)" << endl;
+			cerr << msg_head << "close failed. (PIPE_WRITE)" << endl;
 				
 		if (nxtItr == end)
 		{
@@ -263,7 +264,7 @@ int spawn_for_pipe(vector<ZRCommandParserResultPart>::iterator begin, vector<ZRC
 			return spawn_for_pipe(nxtItr, end);
 	}
 	else
-		cerr << "[ZRSh] Sorry, fork failed!" << endl;
+		cerr << msg_head << "Sorry, fork failed!" << endl;
 	
 	return -1;
 }
@@ -276,22 +277,36 @@ void sigint_handler(int sig)
 {
 	if (!interactive)
 	{
-		cout << endl << "[ZRSh] Sending SIGINT to Kill the foreground process..." << endl;
+		cout << endl << msg_head << "Sending SIGINT to Kill the foreground process..." << endl;
 		kill(waitingpid, SIGINT);
 		cout << endl;
 	}
 	else
 	{
-		cout << endl << "[ZRSh] Received SIGINT, bye!" << endl;
+		cout << endl << msg_head << "Received SIGINT, bye!" << endl;
 		exit(0);
 	}
 }
 
 int main()
 {
-	cout << "Welcome to ZeroShell(ZRSh) 1.0" << endl;
-	cout << "Copyright by Zero Cho 2009. Licensed under MIT license." << endl;
-	cout << "Initializing in progress..." << endl;
+	// Check if the STDOUT is a terminal and support color output
+	if (isatty(STDOUT_FILENO) && strcmp(getenv("TERM"), "dumb"))
+		color_output = true;
+	
+	if (!color_output)
+	{
+		cout << "Welcome to ZeroShell(ZRSh) 1.0" << endl;
+		cout << "Copyright by Zero Cho 2009. Licensed under MIT license." << endl;
+		cout << "Initializing in progress..." << endl;
+	}
+	else
+	{
+		cout << "\033[1;37mWelcome to \033[1;31mZeroShell\033[m(\033[1;31mZRSh\033[m) 1.0\033[m" << endl;
+		cout << "Copyright by Zero Cho 2009. Licensed under MIT license." << endl;
+		cout << "\033[1;33mInitializing in progress...\033[m" << endl;
+		msg_head = "\033[1;31m[ZRSH]\033[m ";
+	}
 	// Initialize the readline library and generate prompt
 	vector<string> history;
 	string command;
@@ -305,7 +320,7 @@ int main()
 	// Install SIGINT catcher
 	signal(SIGINT, sigint_handler);
 	
-	cout << "Done, dropping you to shell." << endl << endl;
+	cout << "\033[1;32mDone, dropping you to shell.\033[m" << endl << endl;
 	
 	// Command input routine
 	while(true)
@@ -317,7 +332,7 @@ int main()
 		getcwd(path_c, size);
 		if (!path_c)
 		{
-			cout << "[ZRSh] ERROR: Unable to construct prompt. (code: " << errno << ")" << endl;
+			cout << msg_head << "ERROR: Unable to construct prompt. (code: " << errno << ")" << endl;
 			exit(-1);
 		}
 		
@@ -328,7 +343,10 @@ int main()
 		int pos = path.find(home);
 		if (pos != string::npos)
 			path = "~" + path.substr(home.length(), path.length() - home.length());
-		oss << getenv("USER") << "@" << hostname << " " << path << "> ";
+		if (color_output)
+			oss << "[\033[33m" << getenv("USER") << "\033[m@\033[32m" << hostname << "\033[m] " << path << "> ";
+		else
+			oss << getenv("USER") << "@" << hostname << " " << path << "> ";
 		
 		// Read input command
 		input = readline(oss.str().c_str());
@@ -374,8 +392,8 @@ int main()
 				setenv(r.parts[0].arguments[0].c_str(), r.parts[0].arguments[1].c_str(), true);
 			else
 			{
-				cout << "setenv requires 1 or 2 arguments, you give me " << r.parts[0].arguments.size() << " arguments." << endl;
-				cout << "Please check \"help\" command." << endl;
+				cout << msg_head << "setenv requires 1 or 2 arguments, you give me " << r.parts[0].arguments.size() << " arguments." << endl;
+				cout << msg_head << "Please check \"help\" command." << endl;
 			}
 		}
 		else if (r.parts[0].command == "listenv")
