@@ -2,7 +2,7 @@ h1. ZeroShell (ZRSh)
 
 h2. Introduction
 
-ZeroShell is my implementation of a simple shell. However, it'll not focus on making it a useful shell. It's only coded for practicing and for the Operating System homework.
+ZeroShell is my implementation of a simple shell. However, I'm not focus on making it a useful shell. It's only coded for practicing and for the Operating System homework.
 
 ZeroShell is also an open source software, under the MIT license.
 
@@ -13,3 +13,18 @@ ZRSh currently requires libreadline to work.
 h2. Compatibility
 
 ZRSh is known to compile and run on Linux(ArchLinux) and Mac OSX.
+
+h2. Features
+
+* Display a prompt ([User@Host] path>)
+* Execute a built-in command or external commands
+* history command to query the command line histories
+* Exit the shell through Ctrl-C or exit / quit command
+* Support put the process to the background by using '&'
+* Search command in MYPATH(delimiter is $), PATH(delimiter is :) environment variables and search in current directory
+* Set/List environment variables through setenv / listenv commands
+* help to see a brief built-in command help
+* When a process is running, hit Ctrl+C to return to ZeroShell.
+* Supports browsing and modify command line by arrow keys
+* Supports TAB auto-completion
+* Detects if terminal supports color, and colorize the message
