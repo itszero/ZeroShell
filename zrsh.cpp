@@ -17,12 +17,18 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include "ZRCommandParser.h"
+#include <pwd.h>
+#include <signal.h>
 using namespace std;
 
 extern int errno;
 extern char** environ;
 
 #ifdef DEBUG
+/**
+ * Output debug message, only works if DEBUG flag is enabled during compiling.
+ * @param msg debug message to show.
+ */
 void debug(string msg)
 {
 	cerr << "[ZRSh (" << getpid() << ")] " << msg << endl;
@@ -30,6 +36,9 @@ void debug(string msg)
 #else
 void debug(string msg) {}
 #endif
+
+bool interactive = false;
+int waitingpid = 0;
 
 /**
  * This method gives you string trimmed the extra whitespaces in the begin or end.
@@ -47,6 +56,47 @@ void trim(string& str)
 }
 
 /**
+ * Expand the "~" or "~username" part in the given string to absolute path.
+ * @param str the path to be expanded.
+ * @return the expanded version of input string
+ */
+string expandHomeDirectory(string str)
+{
+	// If it's already an aboslute path, pass.
+	if (str[0] == '/')
+		return str;
+		
+	// Oh? User directory...
+	if (str[0] == '~')
+	{
+		if (str.size() == 1)
+		{
+			string home = string(getenv("HOME"));
+			return home;
+		}
+		else if (str[1] == '/')
+		{
+			string home = string(getenv("HOME"));
+			return home + str.substr(1);
+		}
+		else
+		{
+			int pos = str.find("/");
+			string username = str.substr(1, pos - 1);
+			struct passwd *record = getpwnam(username.c_str());
+			string path;
+			if (record && record->pw_dir)
+				path = string(record->pw_dir) + str.substr(pos);
+			else
+				path = str;
+			return path;
+		}
+	}
+	
+	return str;
+}
+
+/**
  * Execute the command
  * @param r A ZRCommandParserResultPart object to be executed.
  */
@@ -54,22 +104,35 @@ void execute(ZRCommandParserResultPart r)
 {
 	char **arg_list = (char**)malloc(sizeof(char*) * (r.arguments.size() + 1));
 	
-	// Use MYPATH is it is existed, or we fallback to ordinary PATH
 	char *searchPath = getenv("MYPATH");
+	// MYPATH is existed, but we need to change the delimiter to ordinary ':'
+	if (searchPath)
+	{
+		int len = strlen(searchPath);
+		for(int i=0;i<len;i++)
+			if (searchPath[i] == '$')
+				searchPath[i] = ':';
+	}
+	
+	// MYPATH is not found, use PATH instead.
 	if (!searchPath)
+	{
+		cerr << "[ZRSh] MYPATH is not found, fallback to PATH" << endl;
 		searchPath = getenv("PATH");
-		
+	}
+	
+	// Nothing I can use :( Let's just find it in current directory.
 	if (!searchPath)
 	{
 		searchPath = (char*)malloc(sizeof(char) * 1);
 		strcpy(searchPath, "");
 	}
 
-	// Prepare arguments list
 	string path = r.getAbsolutePath(string(searchPath));
 	if (!searchPath)
 		free(searchPath);
 	
+	// Prepare arguments list
 	arg_list[0] = (char*)malloc(path.length() + 1);
 	strcpy(arg_list[0], path.c_str());
 	arg_list[0][path.length()] = NULL;
@@ -80,8 +143,9 @@ void execute(ZRCommandParserResultPart r)
 		strcpy(arg_list[i+1], r.arguments[i].c_str());
 		arg_list[i+1][r.arguments[i].length()] = NULL;
 	}
-	arg_list[r.arguments.size() + 1] = NULL;
+	arg_list[r.arguments.size() + 1] = NULL; // Don't forget the tailing NULL.
 	
+	// Handles redirection
 	FILE* fp;
 	int fd;
 	
@@ -135,7 +199,10 @@ void spawn(ZRCommandParserResultPart r)
 	else if (pid > 0)
 	{
 		if (!r.background)
+		{
+			waitingpid = pid;
 			waitpid(pid, NULL, NULL);
+		}
 	}
 	else
 		cout << "[ZRSh] Sorry, fork failed!" << endl;
@@ -201,6 +268,25 @@ int spawn_for_pipe(vector<ZRCommandParserResultPart>::iterator begin, vector<ZRC
 	return -1;
 }
 
+/**
+ * SIGINT(Ctrl + C) Handler, kill the waiting process if not in interactive mode. Otherwise, exit ZeroShell.
+ * @params sig signal number (In our case, this will always be SIGINT.)
+ */
+void sigint_handler(int sig)
+{
+	if (!interactive)
+	{
+		cout << endl << "[ZRSh] Sending SIGINT to Kill the foreground process..." << endl;
+		kill(waitingpid, SIGINT);
+		cout << endl;
+	}
+	else
+	{
+		cout << endl << "[ZRSh] Received SIGINT, bye!" << endl;
+		exit(0);
+	}
+}
+
 int main()
 {
 	cout << "Welcome to ZeroShell(ZRSh) 1.0" << endl;
@@ -215,11 +301,16 @@ int main()
 	char hostname[1024] = {0};
 	gethostname(hostname, 1023);
 	string home = string(getenv("HOME"));
+	
+	// Install SIGINT catcher
+	signal(SIGINT, sigint_handler);
+	
 	cout << "Done, dropping you to shell." << endl << endl;
 	
 	// Command input routine
 	while(true)
 	{
+		interactive = true;
 		ostringstream oss;
 		char *path_c = (char*)malloc(sizeof(char) * 1024);
 		size_t size = 1024;
@@ -246,6 +337,7 @@ int main()
 		free(input);
 		if (command == "") continue;
 		add_history(command.c_str());
+		interactive = false;
 		
 		// Parse the input command
 		ZRCommandParserResult r = parser.parse(command);
@@ -268,9 +360,11 @@ int main()
 		else if (r.parts[0].command == "cd")
 		{
 			if (r.parts[0].arguments.size() == 0)
-				chdir("~");
+				chdir(home.c_str());
 			else
-				chdir(r.parts[0].arguments[0].c_str());
+			{
+				chdir(expandHomeDirectory(r.parts[0].arguments[0]).c_str());
+			}
 		}
 		else if (r.parts[0].command == "setenv")
 		{
@@ -316,7 +410,10 @@ int main()
 					exit(0);
 				}
 				else
+				{
+					waitingpid = pid;
 					waitpid(pid, NULL, NULL);
+				}
 			}
 		}
 	}

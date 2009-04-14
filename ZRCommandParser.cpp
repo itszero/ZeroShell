@@ -13,6 +13,11 @@
 #include <vector>
 using namespace std;
 
+/**
+ * Check if file is exists.
+ * @param path Path to file to be checked.
+ * @return Yes, if file is existed. Otherwise, No.
+ */
 bool zr_checkFileExists(string path)
 {
 	FILE *fp = NULL;
