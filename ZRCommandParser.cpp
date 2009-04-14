@@ -27,7 +27,12 @@ bool zr_checkFileExists(string path)
 	return false;
 }
 
-string ZRCommandParserResult::getAbsolutePath(string searchPath)
+/**
+ * Find command executable file in given path.
+ * @param searchPath Search file in the given path with delimiter ":"
+ * @return the absolute path of the executable file
+ */
+string ZRCommandParserResultPart::getAbsolutePath(string searchPath)
 {
 	for(int i=0;i<searchPath.length();i++)
 	{
@@ -54,29 +59,85 @@ string ZRCommandParserResult::getAbsolutePath(string searchPath)
 	return command;
 }
 
-
+/**
+ * Parse the given command
+ * @param command command to parse.
+ * @return A ZRCommandParserResult contains the parsed information.
+ */
 ZRCommandParserResult ZRCommandParser::parse(string command)
 {
 	istringstream iss(command);
 	string input;
 	ZRCommandParserResult r;
+	ZRCommandParserResultPart rp;
+	
 	int i = 0;
+	bool nextIsRedirIn = false;
+	bool nextIsRedirOut = false;
+	bool nextIsRedirAppend = false;
 	while(iss >> input)
 	{
+		bool createNextPart = false;
+		
 		if (i++ == 0)
 		{
-			r.command = input;
+			rp.command = input;
 		}
 		else if (input == "&")
 		{
-			r.background = true;
-			break;
+			rp.background = true;
+			createNextPart = true;
+		}
+		else if (input == "|")
+		{
+			rp.pipe_with_next = true;
+			rp.background = true;
+			createNextPart = true;
+		}
+		else if (input == "<")
+		{
+			nextIsRedirIn = true;
+		}
+		else if (input == ">")
+		{
+			nextIsRedirOut = true;
+		}
+		else if (input == ">>")
+		{
+			nextIsRedirAppend = true;
 		}
 		else
 		{
-			r.arguments.push_back(input);
+			if (nextIsRedirIn)
+			{
+				rp.redirIn = input;
+				nextIsRedirIn = false;
+			}
+			else if (nextIsRedirOut)
+			{
+				rp.redirOut = input;
+				nextIsRedirOut = false;				
+			}
+			else if (nextIsRedirAppend)
+			{
+				rp.redirAppend = input;
+				nextIsRedirAppend = false;				
+			}
+			else
+				rp.arguments.push_back(input);
+		}
+		
+		if (createNextPart)
+		{
+			r.parts.push_back(rp);
+			rp = ZRCommandParserResultPart();
+			i = 0;
+			continue;
 		}
 	}
+	
+	if (rp.command != "")
+		r.parts.push_back(rp);
 	
 	return r;
 }
